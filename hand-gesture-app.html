@@ -4,632 +4,329 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hand Gesture Controller</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mediapipe/0.4.1646424915/hands.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mediapipe/0.4.1646424915/camera_utils.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap');
-
-  :root {
-    --neon: #00ffcc;
-    --neon2: #ff00ff;
-    --bg: #050a0f;
-    --panel: #0a1520;
-    --border: rgba(0,255,204,0.2);
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--bg);
-    color: var(--neon);
-    font-family: 'Rajdhani', sans-serif;
-    min-height: 100vh;
-    overflow: hidden;
-  }
-
-  /* Scanline effect */
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,204,0.015) 2px, rgba(0,255,204,0.015) 4px);
-    pointer-events: none;
-    z-index: 1000;
-  }
-
-  h1 {
-    font-family: 'Orbitron', monospace;
-    font-size: clamp(1rem, 3vw, 1.6rem);
-    letter-spacing: 0.2em;
-    text-shadow: 0 0 20px var(--neon), 0 0 40px var(--neon);
-    text-align: center;
-    padding: 14px 0 8px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .layout {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 12px;
-    padding: 10px 12px;
-    height: calc(100vh - 60px);
-  }
-
-  /* Camera section */
-  .cam-wrap {
-    position: relative;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-    background: #000;
-    box-shadow: 0 0 30px rgba(0,255,204,0.1), inset 0 0 60px rgba(0,0,0,0.8);
-  }
-
-  #videoElement {
-    position: absolute;
-    width: 100%; height: 100%;
-    object-fit: cover;
-    transform: scaleX(-1);
-    opacity: 0.0;
-  }
-
-  #outputCanvas {
-    position: absolute;
-    width: 100%; height: 100%;
-    transform: scaleX(-1);
-  }
-
-  .cam-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(45deg, rgba(0,255,204,0.05) 0%, transparent 60%);
-    pointer-events: none;
-  }
-
-  /* Corner decorations */
-  .corner {
-    position: absolute;
-    width: 20px; height: 20px;
-    border-color: var(--neon);
-    border-style: solid;
-    opacity: 0.8;
-    pointer-events: none;
-  }
-  .corner.tl { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
-  .corner.tr { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
-  .corner.bl { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
-  .corner.br { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
-
-  #startBtn {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    font-family: 'Orbitron', monospace;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--bg);
-    background: var(--neon);
-    border: none;
-    padding: 14px 32px;
-    border-radius: 4px;
-    cursor: pointer;
-    letter-spacing: 0.15em;
-    box-shadow: 0 0 30px var(--neon);
-    transition: all 0.3s;
-    z-index: 10;
-  }
-  #startBtn:hover { box-shadow: 0 0 50px var(--neon); transform: translate(-50%,-50%) scale(1.05); }
-
-  /* Right panel */
-  .panel {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px;
-  }
-
-  .card-title {
-    font-family: 'Orbitron', monospace;
-    font-size: 0.65rem;
-    letter-spacing: 0.2em;
-    color: rgba(0,255,204,0.5);
-    margin-bottom: 12px;
-    text-transform: uppercase;
-  }
-
-  /* Gesture indicator */
-  #gestureDisplay {
-    font-family: 'Orbitron', monospace;
-    font-size: 1.6rem;
-    font-weight: 900;
-    text-align: center;
-    padding: 16px 0;
-    letter-spacing: 0.1em;
-    text-shadow: 0 0 20px currentColor;
-    transition: all 0.2s;
-    min-height: 70px;
-    display: flex; align-items: center; justify-content: center;
-  }
-
-  /* Finger status */
-  .fingers-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 6px;
-  }
-  .finger-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-  }
-  .finger-led {
-    width: 24px; height: 24px;
-    border-radius: 50%;
-    border: 2px solid rgba(0,255,204,0.3);
-    background: rgba(0,255,204,0.05);
-    transition: all 0.15s;
-    position: relative;
-  }
-  .finger-led.up {
-    background: var(--neon);
-    border-color: var(--neon);
-    box-shadow: 0 0 12px var(--neon);
-  }
-  .finger-label {
-    font-size: 0.55rem;
-    letter-spacing: 0.05em;
-    color: rgba(0,255,204,0.5);
-    text-transform: uppercase;
-  }
-
-  /* Coordinate display */
-  .coords {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .coord-box {
-    background: rgba(0,255,204,0.05);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 8px;
-    text-align: center;
-  }
-  .coord-label { font-size: 0.6rem; letter-spacing: 0.1em; color: rgba(0,255,204,0.4); }
-  .coord-val {
-    font-family: 'Orbitron', monospace;
-    font-size: 1.1rem;
-    margin-top: 2px;
-  }
-
-  /* Gesture log */
-  #gestureLog {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-height: 150px;
-  }
-  #gestureLog::-webkit-scrollbar { width: 3px; }
-  #gestureLog::-webkit-scrollbar-thumb { background: var(--neon); border-radius: 2px; }
-
-  .log-entry {
-    font-size: 0.75rem;
-    color: rgba(0,255,204,0.6);
-    padding: 4px 8px;
-    border-left: 2px solid var(--border);
-    animation: fadeIn 0.3s ease;
-    letter-spacing: 0.05em;
-  }
-  .log-entry.new { border-left-color: var(--neon); color: var(--neon); }
-
-  /* Hand count badge */
-  #handCount {
-    display: inline-block;
-    background: rgba(255,0,255,0.15);
-    border: 1px solid rgba(255,0,255,0.4);
-    color: var(--neon2);
-    font-family: 'Orbitron', monospace;
-    font-size: 0.7rem;
-    padding: 3px 10px;
-    border-radius: 20px;
-    letter-spacing: 0.1em;
-  }
-
-  /* Gesture emojis reference */
-  .gesture-ref {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px;
-  }
-  .ref-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.7rem;
-    color: rgba(0,255,204,0.5);
-    padding: 3px 0;
-  }
-  .ref-emoji { font-size: 1rem; }
-
-  @keyframes fadeIn { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-  .status-dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: rgba(0,255,204,0.3);
-    display: inline-block;
-    margin-right: 6px;
-  }
-  .status-dot.active {
-    background: var(--neon);
-    box-shadow: 0 0 8px var(--neon);
-    animation: pulse 1.5s infinite;
-  }
-
-  @media (max-width: 768px) {
-    .layout { grid-template-columns: 1fr; grid-template-rows: 50vh 1fr; }
-    h1 { font-size: 0.9rem; }
-  }
+  :root { --neon: #00ffcc; --neon2: #ff00ff; --bg: #050a0f; --panel: #0a1520; --border: rgba(0,255,204,0.2); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--neon); font-family:'Rajdhani',sans-serif; height:100vh; overflow:hidden; }
+  body::before { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,204,0.015) 2px,rgba(0,255,204,0.015) 4px); pointer-events:none; z-index:1000; }
+  h1 { font-family:'Orbitron',monospace; font-size:clamp(0.8rem,2.5vw,1.4rem); letter-spacing:0.2em; text-shadow:0 0 20px var(--neon),0 0 40px var(--neon); text-align:center; padding:10px 0 6px; border-bottom:1px solid var(--border); }
+  .layout { display:grid; grid-template-columns:1fr 280px; gap:10px; padding:8px 10px; height:calc(100vh - 50px); }
+  .cam-wrap { position:relative; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:#000; box-shadow:0 0 30px rgba(0,255,204,0.15); }
+  #videoElement { position:absolute; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); opacity:0; }
+  #outputCanvas { position:absolute; width:100%; height:100%; transform:scaleX(-1); }
+  #fxCanvas { position:absolute; width:100%; height:100%; transform:scaleX(-1); pointer-events:none; }
+  .corner { position:absolute; width:20px; height:20px; border-color:var(--neon); border-style:solid; pointer-events:none; }
+  .corner.tl{top:8px;left:8px;border-width:2px 0 0 2px}
+  .corner.tr{top:8px;right:8px;border-width:2px 2px 0 0}
+  .corner.bl{bottom:8px;left:8px;border-width:0 0 2px 2px}
+  .corner.br{bottom:8px;right:8px;border-width:0 2px 2px 0}
+  #startBtn { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:'Orbitron',monospace; font-size:1rem; font-weight:700; color:var(--bg); background:var(--neon); border:none; padding:14px 32px; border-radius:4px; cursor:pointer; letter-spacing:0.15em; box-shadow:0 0 30px var(--neon); z-index:10; }
+  .panel { display:flex; flex-direction:column; gap:8px; overflow:hidden; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px; }
+  .card-title { font-family:'Orbitron',monospace; font-size:0.6rem; letter-spacing:0.2em; color:rgba(0,255,204,0.5); margin-bottom:10px; }
+  #gestureDisplay { font-family:'Orbitron',monospace; font-size:1.4rem; font-weight:900; text-align:center; padding:12px 0; letter-spacing:0.1em; text-shadow:0 0 20px currentColor; min-height:60px; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+  .fingers-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+  .finger-item { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .finger-led { width:22px; height:22px; border-radius:50%; border:2px solid rgba(0,255,204,0.3); background:rgba(0,255,204,0.05); transition:all 0.15s; }
+  .finger-led.up { background:var(--neon); border-color:var(--neon); box-shadow:0 0 12px var(--neon),0 0 24px var(--neon); }
+  .finger-label { font-size:0.5rem; color:rgba(0,255,204,0.5); }
+  .coords { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .coord-box { background:rgba(0,255,204,0.05); border:1px solid var(--border); border-radius:4px; padding:6px; text-align:center; }
+  .coord-label { font-size:0.55rem; letter-spacing:0.1em; color:rgba(0,255,204,0.4); }
+  .coord-val { font-family:'Orbitron',monospace; font-size:1rem; margin-top:2px; }
+  #gestureLog { overflow-y:auto; display:flex; flex-direction:column; gap:3px; max-height:120px; flex:1; }
+  #gestureLog::-webkit-scrollbar{width:3px}
+  #gestureLog::-webkit-scrollbar-thumb{background:var(--neon);border-radius:2px}
+  .log-entry { font-size:0.7rem; color:rgba(0,255,204,0.6); padding:3px 8px; border-left:2px solid var(--border); animation:fadeIn 0.3s ease; }
+  .log-entry.new { border-left-color:var(--neon); color:var(--neon); }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:rgba(0,255,204,0.3); display:inline-block; margin-right:6px; }
+  .status-dot.active { background:var(--neon); box-shadow:0 0 8px var(--neon); animation:pulse 1.5s infinite; }
+  #handCount { display:inline-block; background:rgba(255,0,255,0.15); border:1px solid rgba(255,0,255,0.4); color:var(--neon2); font-family:'Orbitron',monospace; font-size:0.65rem; padding:3px 8px; border-radius:20px; }
+  .fx-btns { display:flex; gap:6px; flex-wrap:wrap; }
+  .fx-btn { font-family:'Orbitron',monospace; font-size:0.55rem; padding:5px 8px; border-radius:4px; border:1px solid var(--border); background:rgba(0,255,204,0.05); color:var(--neon); cursor:pointer; letter-spacing:0.05em; transition:all 0.2s; }
+  .fx-btn.on { background:var(--neon); color:#000; box-shadow:0 0 12px var(--neon); }
+  @keyframes fadeIn{from{opacity:0;transform:translateX(-4px)}to{opacity:1;transform:translateX(0)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+  @media(max-width:600px){.layout{grid-template-columns:1fr;grid-template-rows:55vw 1fr}}
 </style>
 </head>
 <body>
-
 <h1>✦ HAND GESTURE CONTROLLER ✦</h1>
-
 <div class="layout">
-  <!-- Camera feed -->
   <div class="cam-wrap" id="camWrap">
     <video id="videoElement" playsinline></video>
     <canvas id="outputCanvas"></canvas>
-    <div class="cam-overlay"></div>
-    <div class="corner tl"></div>
-    <div class="corner tr"></div>
-    <div class="corner bl"></div>
-    <div class="corner br"></div>
+    <canvas id="fxCanvas"></canvas>
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
     <button id="startBtn" onclick="startCamera()">▶ ACTIVATE CAMERA</button>
   </div>
-
-  <!-- Right panel -->
   <div class="panel">
-
-    <!-- Status + hand count -->
-    <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 14px;">
-      <div style="font-size:0.8rem;">
-        <span class="status-dot" id="statusDot"></span>
-        <span id="statusText">OFFLINE</span>
-      </div>
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;">
+      <div style="font-size:0.8rem;"><span class="status-dot" id="statusDot"></span><span id="statusText">OFFLINE</span></div>
       <span id="handCount">0 HANDS</span>
     </div>
-
-    <!-- Gesture detected -->
+    <div class="card">
+      <div class="card-title">🔥 EFFECTS</div>
+      <div class="fx-btns">
+        <button class="fx-btn on" id="btn-fire" onclick="toggleFX('fire')">🔥 FIRE</button>
+        <button class="fx-btn on" id="btn-explode" onclick="toggleFX('explode')">💥 EXPLODE</button>
+        <button class="fx-btn on" id="btn-glow" onclick="toggleFX('glow')">🌟 GLOW</button>
+      </div>
+    </div>
     <div class="card">
       <div class="card-title">Gesture Detected</div>
-      <div id="gestureDisplay" style="color: rgba(0,255,204,0.3);">– – –</div>
+      <div id="gestureDisplay" style="color:rgba(0,255,204,0.3);">– – –</div>
     </div>
-
-    <!-- Finger status -->
     <div class="card">
       <div class="card-title">Finger Status</div>
       <div class="fingers-grid">
-        <div class="finger-item">
-          <div class="finger-led" id="f-thumb"></div>
-          <div class="finger-label">Thumb</div>
-        </div>
-        <div class="finger-item">
-          <div class="finger-led" id="f-index"></div>
-          <div class="finger-label">Index</div>
-        </div>
-        <div class="finger-item">
-          <div class="finger-led" id="f-middle"></div>
-          <div class="finger-label">Mid</div>
-        </div>
-        <div class="finger-item">
-          <div class="finger-led" id="f-ring"></div>
-          <div class="finger-label">Ring</div>
-        </div>
-        <div class="finger-item">
-          <div class="finger-led" id="f-pinky"></div>
-          <div class="finger-label">Pinky</div>
-        </div>
+        <div class="finger-item"><div class="finger-led" id="f-thumb"></div><div class="finger-label">Thumb</div></div>
+        <div class="finger-item"><div class="finger-led" id="f-index"></div><div class="finger-label">Index</div></div>
+        <div class="finger-item"><div class="finger-led" id="f-middle"></div><div class="finger-label">Mid</div></div>
+        <div class="finger-item"><div class="finger-led" id="f-ring"></div><div class="finger-label">Ring</div></div>
+        <div class="finger-item"><div class="finger-led" id="f-pinky"></div><div class="finger-label">Pinky</div></div>
       </div>
     </div>
-
-    <!-- Hand coordinates -->
     <div class="card">
       <div class="card-title">Hand Position</div>
       <div class="coords">
-        <div class="coord-box">
-          <div class="coord-label">X AXIS</div>
-          <div class="coord-val" id="posX">—</div>
-        </div>
-        <div class="coord-box">
-          <div class="coord-label">Y AXIS</div>
-          <div class="coord-val" id="posY">—</div>
-        </div>
+        <div class="coord-box"><div class="coord-label">X AXIS</div><div class="coord-val" id="posX">—</div></div>
+        <div class="coord-box"><div class="coord-label">Y AXIS</div><div class="coord-val" id="posY">—</div></div>
       </div>
     </div>
-
-    <!-- Gesture reference -->
-    <div class="card">
-      <div class="card-title">Gesture Reference</div>
-      <div class="gesture-ref">
-        <div class="ref-item"><span class="ref-emoji">✊</span> FIST (0 up)</div>
-        <div class="ref-item"><span class="ref-emoji">🖐</span> OPEN (5 up)</div>
-        <div class="ref-item"><span class="ref-emoji">☝</span> POINT (index)</div>
-        <div class="ref-item"><span class="ref-emoji">✌</span> PEACE (2 up)</div>
-        <div class="ref-item"><span class="ref-emoji">👍</span> THUMBS UP</div>
-        <div class="ref-item"><span class="ref-emoji">🤙</span> CALL ME</div>
-        <div class="ref-item"><span class="ref-emoji">🤟</span> ROCK ON</div>
-        <div class="ref-item"><span class="ref-emoji">🖖</span> SPOCK</div>
-      </div>
-    </div>
-
-    <!-- Gesture log -->
-    <div class="card" style="flex:1; min-height:0; display:flex; flex-direction:column;">
+    <div class="card" style="flex:1;min-height:0;display:flex;flex-direction:column;">
       <div class="card-title">Gesture Log</div>
       <div id="gestureLog"></div>
     </div>
-
   </div>
 </div>
 
 <script>
-let camera, hands;
+const fx = { fire: true, explode: true, glow: true };
+function toggleFX(name) {
+  fx[name] = !fx[name];
+  document.getElementById('btn-' + name).classList.toggle('on', fx[name]);
+}
+
+let particles = [];
+let lastLandmarks = null;
 let lastGesture = '';
-let gestureColors = {
-  'FIST ✊': '#ff4444',
-  'OPEN HAND 🖐': '#00ffcc',
-  'POINTING ☝': '#ffff00',
-  'PEACE ✌': '#00ff88',
-  'THUMBS UP 👍': '#ff8800',
-  'CALL ME 🤙': '#ff44ff',
-  'ROCK ON 🤟': '#8844ff',
-  'SPOCK 🖖': '#44aaff',
-  'OK 👌': '#ffcc00',
-  'THREE 3': '#00ccff',
-  'FOUR 4': '#ff66aa',
+const gestureColors = {
+  'FIST ✊':'#ff4444','OPEN HAND 🖐':'#00ffcc','POINTING ☝':'#ffff00',
+  'PEACE ✌':'#00ff88','THUMBS UP 👍':'#ff8800','CALL ME 🤙':'#ff44ff',
+  'ROCK ON 🤟':'#8844ff','OK 👌':'#ffcc00','THREE 3':'#00ccff','FOUR 4':'#ff66aa',
 };
+
+function spawnExplosion(x, y, color) {
+  for (let i = 0; i < 50; i++) {
+    const angle = (Math.PI * 2 * i) / 50 + Math.random() * 0.3;
+    const speed = 4 + Math.random() * 8;
+    particles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, life:1.0, decay:0.02+Math.random()*0.02, size:3+Math.random()*6, color, type:'explosion' });
+  }
+  particles.push({ x, y, r:0, life:1.0, decay:0.035, color, type:'wave' });
+  particles.push({ x, y, r:0, life:1.0, decay:0.025, color:'#ffffff', type:'wave' });
+}
+
+function spawnFire(x, y, color) {
+  particles.push({
+    x: x + (Math.random()-0.5)*10, y,
+    vx: (Math.random()-0.5)*2, vy: -2.5 - Math.random()*3,
+    life:1.0, decay:0.055+Math.random()*0.04, size:5+Math.random()*7, color, type:'fire'
+  });
+}
+
+function fxLoop() {
+  const canvas = document.getElementById('fxCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (fx.fire && lastLandmarks) {
+    const tips = [4,8,12,16,20];
+    const fireColors = ['#ff4400','#ff8800','#ffcc00','#ff2200','#ff6600'];
+    tips.forEach((idx, i) => {
+      const lm = lastLandmarks[idx];
+      spawnFire((1-lm.x)*canvas.width, lm.y*canvas.height, fireColors[i]);
+    });
+  }
+
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    if (p.type === 'wave') {
+      p.r += 5;
+      p.life -= p.decay;
+      const alpha = Math.floor(p.life * 200).toString(16).padStart(2,'0');
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.strokeStyle = p.color + alpha;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = fx.glow ? 20 : 8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (p.type === 'fire') {
+      p.x += p.vx; p.y += p.vy;
+      p.life -= p.decay; p.size *= 0.97;
+      ctx.globalAlpha = p.life * 0.85;
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.3, p.color);
+      grad.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ctx.fillStyle = grad;
+      if (fx.glow) { ctx.shadowColor = p.color; ctx.shadowBlur = 25; }
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    } else {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.18;
+      p.life -= p.decay; p.size *= 0.96;
+      ctx.globalAlpha = p.life;
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.4, p.color);
+      grad.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ctx.fillStyle = grad;
+      if (fx.glow) { ctx.shadowColor = p.color; ctx.shadowBlur = 30; }
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
+  });
+  requestAnimationFrame(fxLoop);
+}
 
 function startCamera() {
   document.getElementById('startBtn').style.display = 'none';
-
+  fxLoop();
   const video = document.getElementById('videoElement');
   const canvas = document.getElementById('outputCanvas');
   const ctx = canvas.getContext('2d');
 
-  // Init MediaPipe Hands
-  hands = new Hands({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-  });
+  const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+  hands.setOptions({ maxNumHands:2, modelComplexity:1, minDetectionConfidence:0.7, minTrackingConfidence:0.6 });
 
-  hands.setOptions({
-    maxNumHands: 2,
-    modelComplexity: 1,
-    minDetectionConfidence: 0.7,
-    minTrackingConfidence: 0.6
-  });
-
-  hands.onResults((results) => {
-    // Resize canvas
+  hands.onResults(results => {
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.save(); ctx.scale(-1,1); ctx.drawImage(results.image,-canvas.width,0,canvas.width,canvas.height); ctx.restore();
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const count = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+    document.getElementById('handCount').textContent = count+(count===1?' HAND':' HANDS');
 
-    // Draw video frame
-    ctx.save();
-    ctx.scale(-1, 1);
-    ctx.drawImage(results.image, -canvas.width, 0, canvas.width, canvas.height);
-    ctx.restore();
-
-    const handCount = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
-    document.getElementById('handCount').textContent = handCount + (handCount === 1 ? ' HAND' : ' HANDS');
-
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    if (results.multiHandLandmarks && count > 0) {
       document.getElementById('statusDot').classList.add('active');
       document.getElementById('statusText').textContent = 'TRACKING';
-
-      results.multiHandLandmarks.forEach((landmarks, idx) => {
-        drawHand(ctx, landmarks, canvas.width, canvas.height, idx);
-        if (idx === 0) {
-          updateUI(landmarks, canvas.width, canvas.height);
-        }
+      results.multiHandLandmarks.forEach((lm, idx) => {
+        drawHand(ctx, lm, canvas.width, canvas.height, idx);
+        if (idx === 0) { lastLandmarks = lm; updateUI(lm, canvas.width, canvas.height); }
       });
     } else {
+      lastLandmarks = null;
       document.getElementById('statusText').textContent = 'SCANNING...';
       resetFingers();
       document.getElementById('gestureDisplay').textContent = '– – –';
       document.getElementById('gestureDisplay').style.color = 'rgba(0,255,204,0.3)';
-      document.getElementById('posX').textContent = '—';
-      document.getElementById('posY').textContent = '—';
     }
   });
 
-  camera = new Camera(video, {
-    onFrame: async () => {
-      await hands.send({ image: video });
-    },
-    width: 1280,
-    height: 720,
-    facingMode: 'user'
+  const camera = new Camera(video, {
+    onFrame: async () => { await hands.send({ image: video }); },
+    width: 1280, height: 720, facingMode: 'user'
   });
-
-  camera.start().then(() => {
-    document.getElementById('statusDot').classList.add('active');
-    document.getElementById('statusText').textContent = 'SCANNING...';
-  }).catch(err => {
+  camera.start().catch(() => {
     document.getElementById('startBtn').style.display = 'block';
     document.getElementById('startBtn').textContent = '⚠ RETRY';
-    console.error(err);
   });
 }
 
-function drawHand(ctx, landmarks, w, h, handIdx) {
-  const color = handIdx === 0 ? '#00ffcc' : '#ff00ff';
-  const connections = [
-    [0,1],[1,2],[2,3],[3,4],
-    [0,5],[5,6],[6,7],[7,8],
-    [9,10],[10,11],[11,12],
-    [13,14],[14,15],[15,16],
-    [17,18],[18,19],[19,20],
-    [0,17],[5,9],[9,13],[13,17]
-  ];
-
-  // Draw connections
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
+function drawHand(ctx, lm, w, h, handIdx) {
+  const color = handIdx===0 ? '#00ffcc' : '#ff00ff';
+  const conn = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[9,10],[10,11],[11,12],[13,14],[14,15],[15,16],[17,18],[18,19],[19,20],[0,17],[5,9],[9,13],[13,17]];
   ctx.shadowColor = color;
-  ctx.shadowBlur = 8;
-  connections.forEach(([a, b]) => {
-    const pa = landmarks[a], pb = landmarks[b];
+  ctx.shadowBlur = fx.glow ? 20 : 6;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = fx.glow ? 3 : 2;
+  conn.forEach(([a,b]) => {
     ctx.beginPath();
-    ctx.moveTo((1 - pa.x) * w, pa.y * h);
-    ctx.lineTo((1 - pb.x) * w, pb.y * h);
+    ctx.moveTo((1-lm[a].x)*w, lm[a].y*h);
+    ctx.lineTo((1-lm[b].x)*w, lm[b].y*h);
     ctx.stroke();
   });
-
-  // Draw landmark dots
-  landmarks.forEach((lm, i) => {
-    const x = (1 - lm.x) * w;
-    const y = lm.y * h;
-    const isJoint = [4, 8, 12, 16, 20].includes(i);
-
+  lm.forEach((p, i) => {
+    const isTip = [4,8,12,16,20].includes(i);
     ctx.beginPath();
-    ctx.arc(x, y, isJoint ? 6 : 3, 0, Math.PI * 2);
-    ctx.fillStyle = isJoint ? '#ffffff' : color;
-    ctx.shadowColor = isJoint ? '#ffffff' : color;
-    ctx.shadowBlur = isJoint ? 15 : 8;
+    ctx.arc((1-p.x)*w, p.y*h, isTip?7:3, 0, Math.PI*2);
+    ctx.fillStyle = isTip ? '#ffffff' : color;
+    ctx.shadowColor = isTip ? '#ffffff' : color;
+    ctx.shadowBlur = isTip ? (fx.glow?35:15) : 8;
     ctx.fill();
   });
-
   ctx.shadowBlur = 0;
 }
 
-function updateUI(landmarks, w, h) {
-  // Wrist position (normalized)
-  const wrist = landmarks[0];
-  const xPct = Math.round((1 - wrist.x) * 100);
-  const yPct = Math.round(wrist.y * 100);
-  document.getElementById('posX').textContent = xPct + '%';
-  document.getElementById('posY').textContent = yPct + '%';
-
-  // Detect finger up/down
-  const fingers = getFingersUp(landmarks);
-
-  // Update LEDs
-  const ids = ['f-thumb','f-index','f-middle','f-ring','f-pinky'];
-  ids.forEach((id, i) => {
-    document.getElementById(id).classList.toggle('up', fingers[i]);
-  });
-
-  // Detect gesture
-  const gesture = detectGesture(fingers, landmarks);
+function updateUI(lm, w, h) {
+  document.getElementById('posX').textContent = Math.round((1-lm[0].x)*100)+'%';
+  document.getElementById('posY').textContent = Math.round(lm[0].y*100)+'%';
+  const fingers = getFingersUp(lm);
+  ['f-thumb','f-index','f-middle','f-ring','f-pinky'].forEach((id,i) => document.getElementById(id).classList.toggle('up', fingers[i]));
+  const gesture = detectGesture(fingers, lm);
   const color = gestureColors[gesture] || '#00ffcc';
-
   document.getElementById('gestureDisplay').textContent = gesture;
   document.getElementById('gestureDisplay').style.color = color;
-  document.getElementById('gestureDisplay').style.textShadow = `0 0 20px ${color}`;
-
-  // Log new gestures
+  document.getElementById('gestureDisplay').style.textShadow = `0 0 20px ${color},0 0 40px ${color},0 0 60px ${color}`;
   if (gesture !== lastGesture && gesture !== '– – –') {
     lastGesture = gesture;
     addLog(gesture, color);
+    if (fx.explode) {
+      const fc = document.getElementById('fxCanvas');
+      spawnExplosion((1-lm[9].x)*fc.offsetWidth, lm[9].y*fc.offsetHeight, color);
+    }
   }
 }
 
 function getFingersUp(lm) {
-  const fingers = [];
-
-  // Thumb (compare x for left/right)
-  fingers.push(lm[4].x < lm[3].x);
-
-  // Other 4 fingers (compare y)
-  fingers.push(lm[8].y < lm[6].y);
-  fingers.push(lm[12].y < lm[10].y);
-  fingers.push(lm[16].y < lm[14].y);
-  fingers.push(lm[20].y < lm[18].y);
-
-  return fingers;
+  return [lm[4].x<lm[3].x, lm[8].y<lm[6].y, lm[12].y<lm[10].y, lm[16].y<lm[14].y, lm[20].y<lm[18].y];
 }
 
 function detectGesture(f, lm) {
-  const count = f.filter(Boolean).length;
-  const [thumb, index, middle, ring, pinky] = f;
-
-  // Fist
-  if (count === 0) return 'FIST ✊';
-
-  // Open hand
-  if (count === 5) return 'OPEN HAND 🖐';
-
-  // Thumbs up
-  if (thumb && !index && !middle && !ring && !pinky) return 'THUMBS UP 👍';
-
-  // Pointing
-  if (!thumb && index && !middle && !ring && !pinky) return 'POINTING ☝';
-
-  // Peace / Victory
-  if (!thumb && index && middle && !ring && !pinky) return 'PEACE ✌';
-
-  // Three
-  if (!thumb && index && middle && ring && !pinky) return 'THREE 3';
-
-  // Four
-  if (!thumb && index && middle && ring && pinky) return 'FOUR 4';
-
-  // OK (thumb + index tip close together)
-  const d = dist(lm[4], lm[8]);
-  if (d < 0.06 && middle && ring && pinky) return 'OK 👌';
-
-  // Rock on
-  if (!thumb && index && !middle && !ring && pinky) return 'ROCK ON 🤟';
-
-  // Call me
-  if (thumb && !index && !middle && !ring && pinky) return 'CALL ME 🤙';
-
-  // Spock
-  if (!thumb && index && middle && ring && pinky) return 'SPOCK 🖖';
-
-  return `${count} FINGERS`;
-}
-
-function dist(a, b) {
-  return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
+  const [thumb,index,middle,ring,pinky] = f;
+  const n = f.filter(Boolean).length;
+  if (n===0) return 'FIST ✊';
+  if (n===5) return 'OPEN HAND 🖐';
+  if (thumb&&!index&&!middle&&!ring&&!pinky) return 'THUMBS UP 👍';
+  if (!thumb&&index&&!middle&&!ring&&!pinky) return 'POINTING ☝';
+  if (!thumb&&index&&middle&&!ring&&!pinky) return 'PEACE ✌';
+  if (!thumb&&index&&middle&&ring&&!pinky) return 'THREE 3';
+  if (thumb&&!index&&!middle&&!ring&&pinky) return 'CALL ME 🤙';
+  if (!thumb&&index&&!middle&&!ring&&pinky) return 'ROCK ON 🤟';
+  const d = Math.hypot(lm[4].x-lm[8].x, lm[4].y-lm[8].y);
+  if (d<0.06&&middle&&ring&&pinky) return 'OK 👌';
+  return n+' FINGERS';
 }
 
 function resetFingers() {
-  ['f-thumb','f-index','f-middle','f-ring','f-pinky'].forEach(id => {
-    document.getElementById(id).classList.remove('up');
-  });
+  ['f-thumb','f-index','f-middle','f-ring','f-pinky'].forEach(id=>document.getElementById(id).classList.remove('up'));
 }
 
 function addLog(gesture, color) {
   const log = document.getElementById('gestureLog');
-  const time = new Date().toLocaleTimeString('en-US', { hour12: false });
   const entry = document.createElement('div');
   entry.className = 'log-entry new';
-  entry.style.borderLeftColor = color;
-  entry.style.color = color;
-  entry.textContent = `[${time}] ${gesture}`;
+  entry.style.cssText = `border-left-color:${color};color:${color}`;
+  entry.textContent = `[${new Date().toLocaleTimeString('en-US',{hour12:false})}] ${gesture}`;
   log.prepend(entry);
-
-  setTimeout(() => entry.classList.remove('new'), 500);
-
-  // Max 20 entries
-  while (log.children.length > 20) log.removeChild(log.lastChild);
+  setTimeout(()=>entry.classList.remove('new'),500);
+  while(log.children.length>20) log.removeChild(log.lastChild);
 }
 </script>
-
-<!-- Load MediaPipe via CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 </body>
