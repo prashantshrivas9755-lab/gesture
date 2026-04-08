@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iron Man Vibe - Super Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000005; font-family: sans-serif; }
+        canvas { display: block; }
+        .video-container {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 120px; height: 90px;
+            border: 2px solid rgba(0, 255, 255, 0.4); border-radius: 8px;
+            overflow: hidden; transform: scaleX(-1); opacity: 0.6; z-index: 5;
+        }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #00ffff; font-size: 20px; text-shadow: 0 0 10px #00ffff;
+        }
+        #clearBtn {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: transparent; border: 2px solid #00ffff; color: #00ffff;
+            padding: 10px 20px; font-size: 14px; border-radius: 20px; cursor: pointer;
+            box-shadow: 0 0 10px #00ffff; z-index: 10;
+        }
+        #clearBtn:active { background: #00ffff; color: #000; }
+        #controls-info {
+            position: absolute; top: 20px; left: 20px; color: rgba(255,255,255,0.7);
+            font-size: 12px; pointer-events: none; z-index: 10; background: rgba(0,0,0,0.4); padding: 5px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="loading">Iron Man Suit Booting... 🤖✨</div>
+    <div id="controls-info">
+        R-Hand: Pinch (Change Shape), Spread (Scale)<br>
+        L-Hand: Index Finger (3D Draw)
+    </div>
+    <button id="clearBtn" onclick="clearDrawing()">Clear 3D Drawing</button>
+    <div class="video-container"><video id="input_video" autoplay playsinline></video></div>
+
+    <script>
+        // --- System Configuration ---
+        const MORPH_PARTICLE_COUNT = 10000;
+        const SHAPES = ['heart', 'saturn', 'flower', 'fireworks'];
+        let currentShapeIndex = 0;
+        let isPinching = false;
+        let blastActive = false;
+        let blastStartTime = 0;
+
+        // --- Three.js Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 40;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // --- System 1: Background Morphing Particles ---
+        const morphGeometry = new THREE.BufferGeometry();
+        let morphPositions = new Float32Array(MORPH_PARTICLE_COUNT * 3);
+        let morphTargetPositions = new Float32Array(MORPH_PARTICLE_COUNT * 3);
+        let morphColors = new Float32Array(MORPH_PARTICLE_COUNT * 3);
+
+        const colorPalette = [
+            new THREE.Color(0xff00cc), // Pink Heart
+            new THREE.Color(0x00ffcc), // Cyan Saturn
+            new THREE.Color(0xffaa00), // Yellow Flower
+            new THREE.Color(0xaa00ff)  // Purple Fireworks
+        ];
+
+        let morphScale = 1.0;
+        let morphRotationY = 0;
+
+        // Shape Generators (Same as before)
+        function getHeartPosition(t, i) { return [16*Math.pow(Math.sin(t),3), 13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t), (Math.random()-0.5)*5]; }
+        function getSaturnPosition(t, i) { if (i%3===0) { const phi=Math.acos(-1+(2*i)/(MORPH_PARTICLE_COUNT/3)); const theta=Math.sqrt((MORPH_PARTICLE_COUNT/3)*Math.PI)*phi; return [10*Math.cos(theta)*Math.sin(phi), 10*Math.sin(theta)*Math.sin(phi), 10*Math.cos(phi)]; } else { const radius=15+Math.random()*10; const angle=Math.random()*Math.PI*2; return [radius*Math.cos(angle), (Math.random()-0.5)*2, radius*Math.sin(angle)]; } }
+        function getFlowerPosition(t, i) { const r=20*Math.sin(5*t); return [r*Math.cos(t), r*Math.sin(t), (Math.random()-0.5)*3]; }
+        function getFireworkPosition(t, i) { const radius=Math.random()*30; const theta=Math.random()*2*Math.PI; const phi=Math.acos((Math.random()*2)-1); return [radius*Math.sin(phi)*Math.cos(theta), radius*Math.sin(phi)*Math.sin(theta), radius*Math.cos(phi)]; }
+
+        function updateTargetShape() {
+            const shapeType = SHAPES[currentShapeIndex];
+            const targetColor = colorPalette[currentShapeIndex % colorPalette.length];
+            for (let i=0; i<MORPH_PARTICLE_COUNT; i++) {
+                const t = Math.PI*2*(i/MORPH_PARTICLE_COUNT);
+                let pos;
+                switch(shapeType) { case 'heart':pos=getHeartPosition(t,i);break; case 'saturn':pos=getSaturnPosition(t,i);break; case 'flower':pos=getFlowerPosition(t,i);break; case 'fireworks':pos=getFireworkPosition(t,i);break; }
+                morphTargetPositions[i*3] = pos[0]; morphTargetPositions[i*3+1] = pos[1]; morphTargetPositions[i*3+2] = pos[2];
+                morphColors[i*3] = targetColor.r + (Math.random()-0.5)*0.1; morphColors[i*3+1] = targetColor.g + (Math.random()-0.5)*0.1; morphColors[i*3+2] = targetColor.b + (Math.random()-0.5)*0.1;
+            }
+            morphGeometry.attributes.color.needsUpdate = true;
+        }
+
+        function initMorphParticles() {
+            // Start very far out for blast effect
+            for (let i=0; i<MORPH_PARTICLE_COUNT*3; i++) { morphPositions[i] = (Math.random()-0.5)*300; morphTargetPositions[i] = morphPositions[i]; morphColors[i] = 1.0; }
+            morphGeometry.setAttribute('position', new THREE.BufferAttribute(morphPositions, 3));
+            morphGeometry.setAttribute('color', new THREE.BufferAttribute(morphColors, 3));
+            const material = new THREE.PointsMaterial({ size: 0.3, vertexColors: true, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false });
+            const morphParticles = new THREE.Points(morphGeometry, material);
+            scene.add(morphParticles);
+            updateTargetShape();
+        }
+
+        // --- System 2: Foreground 3D Drawing (Iron Man Pen) ---
+        const drawingGroup = new THREE.Group();
+        scene.add(drawingGroup);
+        const DRAW_POINT_COUNT = 15000;
+        let currentDrawCount = 0;
+        const drawPositions = new Float32Array(DRAW_POINT_COUNT * 3);
+        const drawColors = new Float32Array(DRAW_POINT_COUNT * 3);
+        const drawGeometry = new THREE.BufferGeometry();
+        drawGeometry.setAttribute('position', new THREE.BufferAttribute(drawPositions, 3));
+        drawGeometry.setAttribute('color', new THREE.BufferAttribute(drawColors, 3));
+        drawGeometry.setDrawRange(0, 0);
+
+        const drawMaterial = new THREE.PointsMaterial({ size: 0.5, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 });
+        const drawPoints = new THREE.Points(drawGeometry, drawMaterial);
+        drawingGroup.add(drawPoints);
+
+        let lastIndexPos = null;
+        let drawingHue = 0;
+
+        function clearDrawing() { currentDrawCount = 0; drawGeometry.setDrawRange(0, 0); drawingGroup.position.set(0,0,0); }
+
+        function addDrawingPoint(pos) {
+            if (currentDrawCount >= DRAW_POINT_COUNT) return;
+            drawPositions[currentDrawCount*3] = pos.x; drawPositions[currentDrawCount*3+1] = pos.y; drawPositions[currentDrawCount*3+2] = pos.z;
+            const color = new THREE.Color().setHSL(drawingHue, 1.0, 0.5); drawingHue = (drawingHue + 0.01)%1;
+            drawColors[currentDrawCount*3] = color.r; drawColors[currentDrawCount*3+1] = color.g; drawColors[currentDrawCount*3+2] = color.b;
+            currentDrawCount++; drawGeometry.setDrawRange(0, currentDrawCount);
+            drawGeometry.attributes.position.needsUpdate = true; drawGeometry.attributes.color.needsUpdate = true;
+        }
+
+        // --- Helper: Screen Map 2D -> 3D ---
+        function getWorldPos(landmark) {
+            const x = -(landmark.x - 0.5) * 50; // Mirrored X Fix!
+            const y = -(landmark.y - 0.5) * 50;
+            const z = -landmark.z * 50;
+            return new THREE.Vector3(x, y, z);
+        }
+
+        // --- MediaPipe Hands Logic ---
+        const videoElement = document.getElementById('input_video');
+        function onResults(results) {
+            document.getElementById('loading').style.display = 'none';
+
+            // Start Blast Effect on first valid hand detection
+            if (!blastActive && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                blastActive = true;
+                blastStartTime = Date.now();
+                // Set initial morph shape as the blast ends
+                updateTargetShape(); 
+            }
+
+            let leftHandDraw = false;
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                for(let i=0; i<results.multiHandLandmarks.length; i++) {
+                    const hand = results.multiHandLandmarks[i];
+                    const label = results.multiHandedness[i].label; // Left or Right
+                    
+                    if (label === 'Right') {
+                        // --- RIGHT HAND: Morph Controls ---
+                        const thumbTip=hand[4]; const indexTip=hand[8]; const wrist=hand[0];
+                        const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+                        if (pinchDist < 0.05) { if (!isPinching) { isPinching = true; currentShapeIndex = (currentShapeIndex+1)%SHAPES.length; updateTargetShape(); } } else { isPinching = false; }
+                        const spreadDist = Math.hypot(wrist.x - indexTip.x, wrist.y - indexTip.y);
+                        morphScale = THREE.MathUtils.lerp(morphScale, spreadDist * 3, 0.1); 
+                        morphRotationY = (hand[9].x - 0.5) * Math.PI;
+
+                    } else if (label === 'Left') {
+                        // --- LEFT HAND: Drawing Controls (Index Finger) ---
+                        const indexTip = hand[8]; const middleTip=hand[12]; const wrist=hand[0];
+                        const indexDist=Math.hypot(indexTip.x-wrist.x, indexTip.y-wrist.y);
+                        const middleDist=Math.hypot(middleTip.x-wrist.x, middleTip.y-wrist.y);
+                        // Gesture: Middle finger is down, index is up.
+                        const isPointing = (indexDist > middleDist + 0.1);
+
+                        if (isPointing) {
+                            leftHandDraw = true;
+                            const currentPos = getWorldPos(indexTip);
+                            // TRACING IMPROVEMENT: Add multiple points smoothly
+                            if (lastIndexPos) {
+                                // Add logic to interpolate even smoother curves
+                                addDrawingPoint(lastIndexPos.clone().lerp(currentPos, 0.5));
+                            }
+                            addDrawingPoint(currentPos);
+                            lastIndexPos = currentPos;
+                        }
+                    }
+                }
+            }
+            
+            // Clean up drawing tracing if left hand is gone/not pointing
+            if (!leftHandDraw) lastIndexPos = null;
+        }
+
+        const hands = new Hands({locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({ maxNumHands:2, modelComplexity:1, minDetectionConfidence:0.7, minTrackingConfidence:0.7 });
+        hands.onResults(onResults);
+        const cameraUtils = new Camera(videoElement, { onFrame:async()=>{ await hands.send({image:videoElement}); }, width:640, height:480 });
+        cameraUtils.start();
+
+        // --- Animation Loop ---
+        initMorphParticles();
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (blastActive) {
+                const timeSinceBlast = (Date.now() - blastStartTime) / 1000;
+                let lerpSpeed = 0.05; // Normal speed
+
+                if (timeSinceBlast < 1.0) {
+                    // Stage 1: Fast explosion (expand quickly)
+                    lerpSpeed = 0.3; 
+                    morphScale = THREE.MathUtils.lerp(morphScale, 3.0, 0.2); // Explode outwards
+                    // Add explosive hue shift
+                    for(let i=0; i<MORPH_PARTICLE_COUNT*3; i++) { morphGeometry.attributes.color.array[i] = (Math.random()-0.5)*3; }
+                    morphGeometry.attributes.color.needsUpdate = true;
+                } else if (timeSinceBlast < 2.0) {
+                    // Stage 2: Fast collapse to Heart
+                    lerpSpeed = 0.2;
+                    morphScale = THREE.MathUtils.lerp(morphScale, 1.0, 0.1);
+                } else {
+                    // Stage 3: Normal morphing behavior
+                    if (timeSinceBlast < 3.0) updateTargetShape(); // Final shape refresh after blast hue changes
+                }
+
+                // Apply Morph Animation
+                for (let i=0; i<MORPH_PARTICLE_COUNT*3; i++) {
+                    morphGeometry.attributes.position.array[i] = THREE.MathUtils.lerp(
+                        morphGeometry.attributes.position.array[i], 
+                        morphTargetPositions[i] * morphScale, 
+                        lerpSpeed
+                    );
+                }
+                morphGeometry.attributes.position.needsUpdate = true;
+            }
+
+            // Slow continuous rotation for background vibes
+            if (scene.children[0]) {
+                scene.children[0].rotation.y = THREE.MathUtils.lerp(scene.children[0].rotation.y, morphRotationY, 0.05);
+                scene.children[0].rotation.y += 0.002; 
+                scene.children[0].rotation.z += 0.001; 
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', ()=>{ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); });
+        animate();
+    </script>
+</body>
+</html>
