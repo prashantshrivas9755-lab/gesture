@@ -3,247 +3,276 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>IRON HAND - AR Controller</title>
+<title>IRON HAND</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:#000;font-family:'Orbitron',monospace;overflow:hidden;height:100vh}
-  
   #videoElement{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:0}
-  #bgCanvas{position:fixed;inset:0;width:100%;height:100%;transform:scaleX(-1)}
+  #bgCanvas{position:fixed;inset:0;width:100%;height:100%}
   #drawCanvas{position:fixed;inset:0;width:100%;height:100%;transform:scaleX(-1)}
   #fxCanvas{position:fixed;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none}
-  #hudCanvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
-
-  /* HUD Overlay */
-  .hud-top{position:fixed;top:0;left:0;right:0;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;z-index:100;pointer-events:none}
+  .hud-top{position:fixed;top:0;left:0;right:0;padding:10px 16px;display:flex;justify-content:space-between;z-index:100;pointer-events:none}
   .hud-title{font-size:0.7rem;letter-spacing:0.3em;color:#ff6600;text-shadow:0 0 10px #ff6600}
   .hud-status{font-size:0.6rem;letter-spacing:0.2em;color:#ffaa00}
-  
-  .hud-bottom{position:fixed;bottom:0;left:0;right:0;padding:8px 16px;display:flex;justify-content:space-between;align-items:flex-end;z-index:100;pointer-events:none}
-  
-  #gestureBox{font-size:1rem;font-weight:900;letter-spacing:0.1em;color:#ff6600;text-shadow:0 0 15px #ff6600,0 0 30px #ff4400;transition:all 0.2s}
-  
-  .mode-indicator{font-size:0.6rem;letter-spacing:0.15em;padding:4px 10px;border:1px solid currentColor;border-radius:2px}
-  .mode-draw{color:#00ffff;border-color:#00ffff;text-shadow:0 0 8px #00ffff}
-  .mode-grab{color:#ffaa00;border-color:#ffaa00;text-shadow:0 0 8px #ffaa00}
-  .mode-erase{color:#ff4444;border-color:#ff4444;text-shadow:0 0 8px #ff4444}
-  .mode-blast{color:#ff6600;border-color:#ff6600;text-shadow:0 0 8px #ff6600}
-
-  /* Corner HUD decorations */
-  .hud-corner{position:fixed;width:40px;height:40px;pointer-events:none;z-index:100}
-  .hud-corner.tl{top:30px;left:8px;border-top:2px solid #ff6600;border-left:2px solid #ff6600}
-  .hud-corner.tr{top:30px;right:8px;border-top:2px solid #ff6600;border-right:2px solid #ff6600}
-  .hud-corner.bl{bottom:30px;left:8px;border-bottom:2px solid #ff6600;border-left:2px solid #ff6600}
-  .hud-corner.br{bottom:30px;right:8px;border-bottom:2px solid #ff6600;border-right:2px solid #ff6600}
-
+  .hud-bottom{position:fixed;bottom:0;left:0;right:0;padding:10px 16px;display:flex;justify-content:space-between;align-items:flex-end;z-index:100;pointer-events:none}
+  #gestureBox{font-size:1rem;font-weight:900;color:#ff6600;text-shadow:0 0 15px #ff6600}
+  #modeBox{font-size:0.6rem;letter-spacing:0.15em;padding:4px 10px;border:1px solid #ff6600;border-radius:2px;color:#ff6600;text-shadow:0 0 8px #ff6600}
+  .hud-corner{position:fixed;width:30px;height:30px;pointer-events:none;z-index:100}
+  .tl{top:28px;left:8px;border-top:2px solid #ff6600;border-left:2px solid #ff6600}
+  .tr{top:28px;right:8px;border-top:2px solid #ff6600;border-right:2px solid #ff6600}
+  .bl{bottom:28px;left:8px;border-bottom:2px solid #ff6600;border-left:2px solid #ff6600}
+  .br{bottom:28px;right:8px;border-bottom:2px solid #ff6600;border-right:2px solid #ff6600}
   #startBtn{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Orbitron',monospace;font-size:1rem;font-weight:700;color:#000;background:linear-gradient(135deg,#ff6600,#ffaa00);border:none;padding:16px 36px;border-radius:2px;cursor:pointer;letter-spacing:0.15em;box-shadow:0 0 40px #ff6600;z-index:200}
-
-  .scan-line{position:fixed;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(255,102,0,0.3),transparent);animation:scan 3s linear infinite;pointer-events:none;z-index:50}
+  #guide{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:rgba(255,102,0,0.5);font-size:0.65rem;letter-spacing:0.15em;pointer-events:none;z-index:100;line-height:2.2}
+  .scan-line{position:fixed;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,102,0,0.4),transparent);animation:scan 4s linear infinite;pointer-events:none;z-index:50}
   @keyframes scan{0%{top:-2px}100%{top:100%}}
-
-  /* Guide text */
-  #guide{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:rgba(255,102,0,0.4);font-size:0.6rem;letter-spacing:0.2em;pointer-events:none;z-index:100;line-height:2}
+  #clearBtn{position:fixed;top:10px;right:16px;font-family:'Orbitron',monospace;font-size:0.55rem;color:#ff4444;border:1px solid #ff4444;background:transparent;padding:4px 10px;border-radius:2px;cursor:pointer;letter-spacing:0.1em;z-index:200}
 </style>
 </head>
 <body>
-
 <video id="videoElement" playsinline></video>
 <canvas id="bgCanvas"></canvas>
 <canvas id="drawCanvas"></canvas>
 <canvas id="fxCanvas"></canvas>
-<canvas id="hudCanvas"></canvas>
 
-<!-- HUD Elements -->
 <div class="hud-top">
-  <div class="hud-title">⬡ IRON HAND v2.0</div>
-  <div class="hud-status" id="statusText">INITIALIZING...</div>
+  <div class="hud-title">⬡ IRON HAND</div>
+  <div class="hud-status" id="statusText">OFFLINE</div>
 </div>
 <div class="hud-bottom">
   <div id="gestureBox">– – –</div>
-  <div class="mode-indicator mode-draw" id="modeBox">STANDBY</div>
+  <div id="modeBox">STANDBY</div>
 </div>
 <div class="hud-corner tl"></div>
 <div class="hud-corner tr"></div>
 <div class="hud-corner bl"></div>
 <div class="hud-corner br"></div>
 <div class="scan-line"></div>
+<button id="clearBtn" onclick="clearAll()">✕ CLEAR</button>
 
-<div id="guide">☝ INDEX FINGER = DRAW<br>✊ FIST = ERASE<br>🖐 OPEN HAND = GRAB & MOVE<br>👍 THUMBS UP = BLAST!</div>
+<div id="guide">
+  ☝ SIRF INDEX FINGER = DRAW<br>
+  ✊ FIST = GRAB & MOVE<br>
+  🖐 OPEN HAND = RELEASE<br>
+  👍 THUMBS UP = BLAST!
+</div>
 
-<button id="startBtn" onclick="startCamera()">⬡ ACTIVATE SUIT</button>
+<button id="startBtn" onclick="startCamera()">⬡ ACTIVATE</button>
 
 <script>
-// ══════════════════════════════
-// STATE
-// ══════════════════════════════
-let landmarks = null;
-let particles = [];
-let drawStrokes = []; // [{points:[{x,y}], color, width}]
-let currentStroke = null;
-let grabbedStrokes = []; // indices of grabbed strokes
-let grabOffset = {x:0, y:0};
-let lastGesture = '';
-let mode = 'standby';
-let prevIndexPos = null;
-let scanAngle = 0;
-let arcPulse = 0;
-
-// ══════════════════════════════
-// CANVAS SETUP
-// ══════════════════════════════
 const bgC = document.getElementById('bgCanvas');
 const bgCtx = bgC.getContext('2d');
 const drawC = document.getElementById('drawCanvas');
 const drawCtx = drawC.getContext('2d');
 const fxC = document.getElementById('fxCanvas');
 const fxCtx = fxC.getContext('2d');
-const hudC = document.getElementById('hudCanvas');
-const hudCtx = hudC.getContext('2d');
 
-function resizeAll() {
-  [bgC, drawC, fxC, hudC].forEach(c => {
-    c.width = window.innerWidth;
-    c.height = window.innerHeight;
-  });
+let W = window.innerWidth, H = window.innerHeight;
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  [bgC, drawC, fxC].forEach(c => { c.width = W; c.height = H; });
+  renderDrawings();
 }
-window.addEventListener('resize', resizeAll);
-resizeAll();
+window.addEventListener('resize', resize);
+resize();
 
-// ══════════════════════════════
-// PARTICLES
-// ══════════════════════════════
+// ── STATE ──
+let lm = null;
+let strokes = [];         // [{points:[{x,y}], color, width}]
+let currentStroke = null; // stroke being drawn now
+let grabbedIdx = -1;      // index of grabbed stroke
+let grabOffX = 0, grabOffY = 0; // offset from palm to stroke center
+let prevPalmX = 0, prevPalmY = 0;
+let particles = [];
+let arcPulse = 0;
+let scanAngle = 0;
+let lastGesture = '';
+
+function clearAll() { strokes = []; currentStroke = null; grabbedIdx = -1; renderDrawings(); }
+
+// ── GESTURE HELPERS ──
+function fingersUp(l) {
+  return [
+    l[4].x < l[3].x,
+    l[8].y < l[6].y,
+    l[12].y < l[10].y,
+    l[16].y < l[14].y,
+    l[20].y < l[18].y
+  ];
+}
+
+// DRAW: ONLY index up, ALL others down
+function isDrawMode(f) {
+  return !f[0] && f[1] && !f[2] && !f[3] && !f[4];
+}
+
+// GRAB: FIST (all fingers down)
+function isGrabMode(f) {
+  return !f[1] && !f[2] && !f[3] && !f[4];
+}
+
+// OPEN: all 5 up
+function isOpenHand(f) {
+  return f[0] && f[1] && f[2] && f[3] && f[4];
+}
+
+// BLAST: thumb only
+function isBlast(f) {
+  return f[0] && !f[1] && !f[2] && !f[3] && !f[4];
+}
+
+function getGestureName(f) {
+  if (isDrawMode(f)) return 'DRAW ☝';
+  if (isBlast(f)) return 'BLAST 👍';
+  if (isOpenHand(f)) return 'OPEN 🖐';
+  if (isGrabMode(f)) return 'GRAB ✊';
+  const n = f.filter(Boolean).length;
+  return n + ' FINGERS';
+}
+
+// ── STROKE CENTER ──
+function strokeCenter(stroke) {
+  let sx = 0, sy = 0;
+  stroke.points.forEach(p => { sx += p.x; sy += p.y; });
+  return { x: sx / stroke.points.length, y: sy / stroke.points.length };
+}
+
+// ── PARTICLES ──
 function spawnBlast(x, y) {
-  // Main shockwave rings
-  for(let r=0;r<3;r++) {
-    particles.push({type:'ring', x, y, radius:0, maxR:120+r*60, life:1, decay:0.025+r*0.008, color:`hsl(${20+r*10},100%,${60-r*10}%)`});
+  for (let r = 0; r < 3; r++) {
+    particles.push({ type: 'ring', x, y, radius: 5, life: 1, decay: 0.02 + r * 0.007, color: `hsl(${20 + r * 15},100%,${65 - r * 10}%)` });
   }
-  // Energy sparks
-  for(let i=0;i<80;i++) {
-    const angle = Math.random()*Math.PI*2;
-    const speed = 5+Math.random()*12;
-    const hue = 10+Math.random()*40;
-    particles.push({
-      type:'spark', x, y,
-      vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed,
-      life:1, decay:0.018+Math.random()*0.015,
-      size:2+Math.random()*4,
-      color:`hsl(${hue},100%,70%)`,
-      tail:[]
-    });
+  for (let i = 0; i < 80; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 5 + Math.random() * 12;
+    particles.push({ type: 'spark', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, decay: 0.016 + Math.random() * 0.014, size: 2 + Math.random() * 4, color: `hsl(${10 + Math.random() * 40},100%,70%)`, tail: [] });
   }
-  // Hot core flash
-  particles.push({type:'flash', x, y, life:1, decay:0.08, size:80});
+  particles.push({ type: 'flash', x, y, life: 1, decay: 0.07, size: 90 });
+  document.body.style.filter = 'brightness(2.5)';
+  setTimeout(() => document.body.style.filter = '', 120);
 }
 
-function spawnArcReactor(x, y) {
-  // Subtle energy particles from palm
-  if(Math.random()>0.7) {
-    const angle = Math.random()*Math.PI*2;
-    particles.push({
-      type:'arc', x, y,
-      vx:Math.cos(angle)*1.5, vy:Math.sin(angle)*1.5,
-      life:1, decay:0.04, size:3+Math.random()*3,
-      color:'#ff8800'
-    });
+// ── DRAW STROKES ──
+function renderDrawings() {
+  drawCtx.clearRect(0, 0, W, H);
+  strokes.forEach((stroke, si) => {
+    if (stroke.points.length < 2) return;
+    drawCtx.beginPath();
+    drawCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+    stroke.points.forEach(pt => drawCtx.lineTo(pt.x, pt.y));
+    const isGrabbed = si === grabbedIdx;
+    drawCtx.strokeStyle = isGrabbed ? '#ffff00' : stroke.color;
+    drawCtx.lineWidth = stroke.width;
+    drawCtx.lineCap = 'round';
+    drawCtx.lineJoin = 'round';
+    drawCtx.shadowColor = isGrabbed ? '#ffff00' : stroke.color;
+    drawCtx.shadowBlur = isGrabbed ? 25 : 12;
+    drawCtx.stroke();
+    drawCtx.shadowBlur = 0;
+  });
+  // Live stroke
+  if (currentStroke && currentStroke.points.length > 1) {
+    drawCtx.beginPath();
+    drawCtx.moveTo(currentStroke.points[0].x, currentStroke.points[0].y);
+    currentStroke.points.forEach(pt => drawCtx.lineTo(pt.x, pt.y));
+    drawCtx.strokeStyle = '#00ffff';
+    drawCtx.lineWidth = 3;
+    drawCtx.lineCap = 'round';
+    drawCtx.shadowColor = '#00ffff';
+    drawCtx.shadowBlur = 18;
+    drawCtx.stroke();
+    drawCtx.shadowBlur = 0;
   }
 }
 
-// ══════════════════════════════
-// MAIN RENDER LOOP
-// ══════════════════════════════
-function renderLoop() {
-  const W = window.innerWidth, H = window.innerHeight;
-  arcPulse += 0.08;
-  scanAngle += 0.02;
+// ── MAIN LOOP ──
+function loop() {
+  arcPulse += 0.07;
+  scanAngle += 0.025;
 
-  // ── BG: Camera + tint ──
-  bgCtx.clearRect(0,0,W,H);
+  // BG
+  bgCtx.clearRect(0, 0, W, H);
 
-  // ── FX Canvas ──
-  fxCtx.clearRect(0,0,W,H);
+  // FX
+  fxCtx.clearRect(0, 0, W, H);
 
-  // Arc reactor on palm
-  if(landmarks && mode !== 'standby') {
-    const palm = landmarks[9];
-    const px = (1-palm.x)*W, py = palm.y*H;
-    spawnArcReactor(px, py);
+  if (lm) {
+    const palmX = (1 - lm[9].x) * W;
+    const palmY = lm[9].y * H;
 
-    // Arc reactor glow
-    const arcR = 18+Math.sin(arcPulse)*4;
-    const arcGrad = fxCtx.createRadialGradient(px,py,0,px,py,arcR*3);
-    arcGrad.addColorStop(0,'rgba(255,180,50,0.9)');
-    arcGrad.addColorStop(0.3,'rgba(255,100,0,0.5)');
-    arcGrad.addColorStop(1,'transparent');
+    // Arc reactor on palm
+    const arcR = 16 + Math.sin(arcPulse) * 3;
+    const ag = fxCtx.createRadialGradient(palmX, palmY, 0, palmX, palmY, arcR * 4);
+    ag.addColorStop(0, 'rgba(255,180,50,0.8)');
+    ag.addColorStop(0.4, 'rgba(255,90,0,0.4)');
+    ag.addColorStop(1, 'transparent');
     fxCtx.beginPath();
-    fxCtx.arc(px,py,arcR*3,0,Math.PI*2);
-    fxCtx.fillStyle=arcGrad;
+    fxCtx.arc(palmX, palmY, arcR * 4, 0, Math.PI * 2);
+    fxCtx.fillStyle = ag;
     fxCtx.fill();
 
-    // Hexagon arc reactor
+    // Hexagon
     fxCtx.save();
-    fxCtx.translate(px,py);
-    fxCtx.rotate(arcPulse*0.5);
+    fxCtx.translate(palmX, palmY);
+    fxCtx.rotate(arcPulse * 0.4);
     fxCtx.beginPath();
-    for(let i=0;i<6;i++){
-      const a=i*Math.PI/3;
-      i===0?fxCtx.moveTo(Math.cos(a)*arcR,Math.sin(a)*arcR):fxCtx.lineTo(Math.cos(a)*arcR,Math.sin(a)*arcR);
+    for (let i = 0; i < 6; i++) {
+      const a = i * Math.PI / 3;
+      i === 0 ? fxCtx.moveTo(Math.cos(a) * arcR, Math.sin(a) * arcR) : fxCtx.lineTo(Math.cos(a) * arcR, Math.sin(a) * arcR);
     }
     fxCtx.closePath();
-    fxCtx.strokeStyle=`rgba(255,${150+Math.floor(Math.sin(arcPulse)*50)},0,0.9)`;
-    fxCtx.lineWidth=2;
-    fxCtx.shadowColor='#ff6600';
-    fxCtx.shadowBlur=15;
+    fxCtx.strokeStyle = `rgba(255,${140 + Math.floor(Math.sin(arcPulse) * 50)},0,0.9)`;
+    fxCtx.lineWidth = 2;
+    fxCtx.shadowColor = '#ff6600';
+    fxCtx.shadowBlur = 12;
     fxCtx.stroke();
     fxCtx.restore();
 
-    // Fingertip energy nodes
-    [4,8,12,16,20].forEach((idx,i) => {
-      const lm = landmarks[idx];
-      const fx2 = (1-lm.x)*W, fy2 = lm.y*H;
-      const colors = ['#ff6600','#ffaa00','#ff4400','#ff8800','#ffcc00'];
-      const r = 6+Math.sin(arcPulse+i)*2;
-      const grad = fxCtx.createRadialGradient(fx2,fy2,0,fx2,fy2,r*3);
-      grad.addColorStop(0,'white');
-      grad.addColorStop(0.3,colors[i]);
-      grad.addColorStop(1,'transparent');
+    // Skeleton
+    const conn = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[9,10],[10,11],[11,12],[13,14],[14,15],[15,16],[17,18],[18,19],[19,20],[0,17],[5,9],[9,13],[13,17]];
+    conn.forEach(([a, b]) => {
       fxCtx.beginPath();
-      fxCtx.arc(fx2,fy2,r*3,0,Math.PI*2);
-      fxCtx.fillStyle=grad;
-      fxCtx.fill();
-
-      // Energy line from palm to fingertip
-      fxCtx.beginPath();
-      fxCtx.moveTo(px,py);
-      fxCtx.lineTo(fx2,fy2);
-      fxCtx.strokeStyle=`rgba(255,${100+i*20},0,0.2)`;
-      fxCtx.lineWidth=1;
+      fxCtx.moveTo((1-lm[a].x)*W, lm[a].y*H);
+      fxCtx.lineTo((1-lm[b].x)*W, lm[b].y*H);
+      fxCtx.strokeStyle = 'rgba(255,102,0,0.55)';
+      fxCtx.lineWidth = 1.5;
+      fxCtx.shadowColor = '#ff6600';
+      fxCtx.shadowBlur = 6;
       fxCtx.stroke();
     });
+    lm.forEach((p, i) => {
+      const isTip = [4,8,12,16,20].includes(i);
+      fxCtx.beginPath();
+      fxCtx.arc((1-p.x)*W, p.y*H, isTip?5:2.5, 0, Math.PI*2);
+      fxCtx.fillStyle = isTip ? '#ffaa00' : '#ff6600';
+      fxCtx.shadowColor = '#ff6600';
+      fxCtx.shadowBlur = isTip ? 14 : 5;
+      fxCtx.fill();
+    });
+    fxCtx.shadowBlur = 0;
 
-    // Target lock on index fingertip when drawing
-    if(mode==='draw') {
-      const tip = landmarks[8];
-      const tx=(1-tip.x)*W, ty=tip.y*H;
+    // Draw mode crosshair on index tip
+    const f = fingersUp(lm);
+    if (isDrawMode(f)) {
+      const tx = (1-lm[8].x)*W, ty = lm[8].y*H;
       fxCtx.save();
-      fxCtx.translate(tx,ty);
+      fxCtx.translate(tx, ty);
       fxCtx.rotate(scanAngle);
-      // Rotating target rings
-      for(let ring=0;ring<2;ring++){
+      for (let r = 0; r < 2; r++) {
         fxCtx.beginPath();
-        fxCtx.arc(0,0,14+ring*8,0,Math.PI*1.5);
-        fxCtx.strokeStyle=`rgba(0,255,255,${0.8-ring*0.3})`;
-        fxCtx.lineWidth=1.5;
-        fxCtx.shadowColor='#00ffff';
-        fxCtx.shadowBlur=8;
+        fxCtx.arc(0, 0, 14+r*8, 0, Math.PI*1.6);
+        fxCtx.strokeStyle = `rgba(0,255,255,${0.9-r*0.3})`;
+        fxCtx.lineWidth = 1.5;
+        fxCtx.shadowColor = '#00ffff';
+        fxCtx.shadowBlur = 8;
         fxCtx.stroke();
       }
-      // Cross hair
-      [[-18,0],[18,0],[0,-18],[0,18]].forEach(([dx,dy])=>{
+      [[-16,0],[16,0],[0,-16],[0,16]].forEach(([dx,dy]) => {
         fxCtx.beginPath();
-        fxCtx.moveTo(dx>0?dx-8:dx===0?0:dx+8, dy>0?dy-8:dy===0?0:dy+8);
+        fxCtx.moveTo(dx>0?dx-7:dx<0?dx+7:0, dy>0?dy-7:dy<0?dy+7:0);
         fxCtx.lineTo(dx,dy);
-        fxCtx.strokeStyle='rgba(0,255,255,0.9)';
+        fxCtx.strokeStyle='rgba(0,255,255,1)';
         fxCtx.lineWidth=1.5;
         fxCtx.stroke();
       });
@@ -251,332 +280,177 @@ function renderLoop() {
     }
   }
 
-  // Update + draw particles
-  particles = particles.filter(p=>p.life>0);
-  particles.forEach(p=>{
-    p.life-=p.decay;
-    if(p.type==='ring'){
-      p.radius+=6;
+  // Particles
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    p.life -= p.decay;
+    if (p.type === 'ring') {
+      p.radius += 5;
       fxCtx.beginPath();
-      fxCtx.arc(p.x,p.y,p.radius,0,Math.PI*2);
-      const alpha=Math.floor(p.life*180).toString(16).padStart(2,'0');
-      fxCtx.strokeStyle=p.color+alpha;
-      fxCtx.lineWidth=3+p.life*4;
-      fxCtx.shadowColor=p.color;
-      fxCtx.shadowBlur=20;
+      fxCtx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+      fxCtx.strokeStyle = p.color + Math.floor(p.life*180).toString(16).padStart(2,'0');
+      fxCtx.lineWidth = 2+p.life*5;
+      fxCtx.shadowColor = p.color;
+      fxCtx.shadowBlur = 20;
       fxCtx.stroke();
-      fxCtx.shadowBlur=0;
-    } else if(p.type==='spark'){
-      if(p.tail.length>8) p.tail.shift();
+      fxCtx.shadowBlur = 0;
+    } else if (p.type === 'spark') {
+      if (p.tail.length > 8) p.tail.shift();
       p.tail.push({x:p.x,y:p.y});
-      p.x+=p.vx; p.y+=p.vy;
-      p.vx*=0.93; p.vy*=0.93; p.vy+=0.3;
-      // Draw tail
-      if(p.tail.length>1){
+      p.x += p.vx; p.y += p.vy;
+      p.vx *= 0.93; p.vy *= 0.93; p.vy += 0.28;
+      if (p.tail.length > 1) {
         fxCtx.beginPath();
-        fxCtx.moveTo(p.tail[0].x,p.tail[0].y);
-        p.tail.forEach(pt=>fxCtx.lineTo(pt.x,pt.y));
-        fxCtx.strokeStyle=p.color;
-        fxCtx.lineWidth=p.size*p.life;
-        fxCtx.shadowColor=p.color;
-        fxCtx.shadowBlur=8;
-        fxCtx.globalAlpha=p.life;
+        fxCtx.moveTo(p.tail[0].x, p.tail[0].y);
+        p.tail.forEach(pt => fxCtx.lineTo(pt.x, pt.y));
+        fxCtx.strokeStyle = p.color;
+        fxCtx.lineWidth = p.size * p.life;
+        fxCtx.shadowColor = p.color;
+        fxCtx.shadowBlur = 8;
+        fxCtx.globalAlpha = p.life;
         fxCtx.stroke();
-        fxCtx.globalAlpha=1;
-        fxCtx.shadowBlur=0;
+        fxCtx.globalAlpha = 1;
+        fxCtx.shadowBlur = 0;
       }
-      // Dot
+    } else if (p.type === 'flash') {
+      const fg = fxCtx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*p.life*2.5);
+      fg.addColorStop(0, `rgba(255,255,255,${p.life})`);
+      fg.addColorStop(0.4, `rgba(255,140,0,${p.life*0.7})`);
+      fg.addColorStop(1, 'transparent');
       fxCtx.beginPath();
-      fxCtx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);
-      fxCtx.fillStyle='white';
-      fxCtx.globalAlpha=p.life;
+      fxCtx.arc(p.x,p.y,p.size*p.life*2.5,0,Math.PI*2);
+      fxCtx.fillStyle = fg;
       fxCtx.fill();
-      fxCtx.globalAlpha=1;
-    } else if(p.type==='flash'){
-      const grad=fxCtx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*p.life*3);
-      grad.addColorStop(0,`rgba(255,255,255,${p.life})`);
-      grad.addColorStop(0.3,`rgba(255,150,0,${p.life*0.8})`);
-      grad.addColorStop(1,'transparent');
-      fxCtx.beginPath();
-      fxCtx.arc(p.x,p.y,p.size*p.life*3,0,Math.PI*2);
-      fxCtx.fillStyle=grad;
-      fxCtx.fill();
-    } else if(p.type==='arc'){
-      p.x+=p.vx; p.y+=p.vy;
-      fxCtx.beginPath();
-      fxCtx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);
-      const ag=fxCtx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*p.life);
-      ag.addColorStop(0,'white');
-      ag.addColorStop(1,p.color);
-      fxCtx.fillStyle=ag;
-      fxCtx.globalAlpha=p.life;
-      fxCtx.fill();
-      fxCtx.globalAlpha=1;
     }
   });
 
-  // ── HUD Canvas ──
-  hudCtx.clearRect(0,0,W,H);
-  if(landmarks) drawHUD(W,H);
-
-  requestAnimationFrame(renderLoop);
+  requestAnimationFrame(loop);
 }
 
-function drawHUD(W,H) {
-  // Scan circle around wrist
-  const wrist = landmarks[0];
-  const wx=(1-wrist.x)*W, wy=wrist.y*H;
-  hudCtx.save();
-  hudCtx.translate(wx,wy);
-  hudCtx.rotate(-scanAngle*0.5);
-  hudCtx.beginPath();
-  hudCtx.arc(0,0,35,0,Math.PI*1.7);
-  hudCtx.strokeStyle='rgba(255,102,0,0.5)';
-  hudCtx.lineWidth=1;
-  hudCtx.setLineDash([4,4]);
-  hudCtx.stroke();
-  hudCtx.setLineDash([]);
-  hudCtx.restore();
+// ── PROCESS HAND ──
+function processHand(landmarks) {
+  const f = fingersUp(landmarks);
+  const gesture = getGestureName(f);
+  const palmX = (1 - landmarks[9].x) * W;
+  const palmY = landmarks[9].y * H;
+  const indexX = (1 - landmarks[8].x) * W;
+  const indexY = landmarks[8].y * H;
 
-  // Data readout next to wrist
-  hudCtx.font='600 0.5rem Orbitron';
-  hudCtx.fillStyle='rgba(255,102,0,0.7)';
-  const xPct=Math.round((1-wrist.x)*100);
-  const yPct=Math.round(wrist.y*100);
-  hudCtx.fillText(`X:${xPct} Y:${yPct}`, wx+42, wy-5);
-  hudCtx.fillText(`MODE:${mode.toUpperCase()}`, wx+42, wy+10);
-}
+  document.getElementById('gestureBox').textContent = gesture;
 
-// ══════════════════════════════
-// HAND SKELETON
-// ══════════════════════════════
-function drawSkeleton(ctx, lm, W, H) {
-  const conn=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[9,10],[10,11],[11,12],[13,14],[14,15],[15,16],[17,18],[18,19],[19,20],[0,17],[5,9],[9,13],[13,17]];
-  conn.forEach(([a,b])=>{
-    const pa=lm[a],pb=lm[b];
-    ctx.beginPath();
-    ctx.moveTo((1-pa.x)*W,pa.y*H);
-    ctx.lineTo((1-pb.x)*W,pb.y*H);
-    ctx.strokeStyle='rgba(255,102,0,0.6)';
-    ctx.lineWidth=2;
-    ctx.shadowColor='#ff6600';
-    ctx.shadowBlur=8;
-    ctx.stroke();
-  });
-  lm.forEach((p,i)=>{
-    const isTip=[4,8,12,16,20].includes(i);
-    ctx.beginPath();
-    ctx.arc((1-p.x)*W,p.y*H,isTip?5:2.5,0,Math.PI*2);
-    ctx.fillStyle=isTip?'#ffaa00':'#ff6600';
-    ctx.shadowColor='#ff6600';
-    ctx.shadowBlur=isTip?15:6;
-    ctx.fill();
-  });
-  ctx.shadowBlur=0;
-}
-
-// ══════════════════════════════
-// DRAWING SYSTEM
-// ══════════════════════════════
-function renderDrawings() {
-  const W=window.innerWidth,H=window.innerHeight;
-  drawCtx.clearRect(0,0,W,H);
-
-  drawStrokes.forEach((stroke,si)=>{
-    if(stroke.points.length<2) return;
-    const isGrabbed=grabbedStrokes.includes(si);
-    drawCtx.beginPath();
-    drawCtx.moveTo(stroke.points[0].x,stroke.points[0].y);
-    stroke.points.forEach(pt=>drawCtx.lineTo(pt.x,pt.y));
-    drawCtx.strokeStyle=isGrabbed?'#ffff00':stroke.color;
-    drawCtx.lineWidth=stroke.width;
-    drawCtx.lineCap='round';
-    drawCtx.lineJoin='round';
-    drawCtx.shadowColor=isGrabbed?'#ffff00':stroke.color;
-    drawCtx.shadowBlur=isGrabbed?20:12;
-    drawCtx.globalAlpha=stroke.alpha||1;
-    drawCtx.stroke();
-    drawCtx.globalAlpha=1;
-    drawCtx.shadowBlur=0;
-  });
-
-  // Current stroke being drawn
-  if(currentStroke && currentStroke.points.length>1){
-    drawCtx.beginPath();
-    drawCtx.moveTo(currentStroke.points[0].x,currentStroke.points[0].y);
-    currentStroke.points.forEach(pt=>drawCtx.lineTo(pt.x,pt.y));
-    drawCtx.strokeStyle='#00ffff';
-    drawCtx.lineWidth=3;
-    drawCtx.lineCap='round';
-    drawCtx.shadowColor='#00ffff';
-    drawCtx.shadowBlur=15;
-    drawCtx.stroke();
-    drawCtx.shadowBlur=0;
-  }
-}
-
-// ══════════════════════════════
-// GESTURE DETECTION
-// ══════════════════════════════
-function getFingersUp(lm){
-  return [lm[4].x<lm[3].x, lm[8].y<lm[6].y, lm[12].y<lm[10].y, lm[16].y<lm[14].y, lm[20].y<lm[18].y];
-}
-
-function detectGesture(f,lm){
-  const [thumb,index,middle,ring,pinky]=f;
-  const n=f.filter(Boolean).length;
-  if(n===0) return 'FIST ✊';
-  if(n===5) return 'OPEN HAND 🖐';
-  if(thumb&&!index&&!middle&&!ring&&!pinky) return 'THUMBS UP 👍';
-  if(!thumb&&index&&!middle&&!ring&&!pinky) return 'POINTING ☝';
-  if(!thumb&&index&&middle&&!ring&&!pinky) return 'PEACE ✌';
-  if(thumb&&!index&&!middle&&!ring&&pinky) return 'CALL ME 🤙';
-  if(!thumb&&index&&!middle&&!ring&&pinky) return 'ROCK ON 🤟';
-  const d=Math.hypot(lm[4].x-lm[8].x,lm[4].y-lm[8].y);
-  if(d<0.06&&middle&&ring&&pinky) return 'OK 👌';
-  return n+' FINGERS';
-}
-
-function processGesture(lm, gesture, W, H) {
-  const f=getFingersUp(lm);
-  const indexTip = lm[8];
-  const ix=(1-indexTip.x)*W, iy=indexTip.y*H;
-  const palmX=(1-lm[9].x)*W, palmY=lm[9].y*H;
-
-  // ── DRAW MODE: Only index up ──
-  if(!f[0]&&f[1]&&!f[2]&&!f[3]&&!f[4]) {
-    mode='draw';
-    document.getElementById('modeBox').className='mode-indicator mode-draw';
-    document.getElementById('modeBox').textContent='✏ DRAW';
-    if(!currentStroke) currentStroke={points:[],color:'#00ffff',width:3};
-    currentStroke.points.push({x:ix,y:iy});
-    // Keep stroke reasonable length
-    if(currentStroke.points.length>300) currentStroke.points.shift();
+  // ── DRAW: only index finger up ──
+  if (isDrawMode(f)) {
+    document.getElementById('modeBox').textContent = '✏ DRAW';
+    document.getElementById('modeBox').style.color = '#00ffff';
+    document.getElementById('modeBox').style.borderColor = '#00ffff';
+    grabbedIdx = -1;
+    if (!currentStroke) currentStroke = { points: [], color: '#00ffff', width: 3 };
+    currentStroke.points.push({ x: indexX, y: indexY });
+    if (currentStroke.points.length > 400) currentStroke.points.shift();
   } else {
-    // Save current stroke
-    if(currentStroke && currentStroke.points.length>5) {
-      drawStrokes.push({...currentStroke, alpha:1});
+    // Save stroke when leaving draw mode
+    if (currentStroke && currentStroke.points.length > 4) {
+      strokes.push({ ...currentStroke });
     }
-    currentStroke=null;
+    currentStroke = null;
   }
 
-  // ── GRAB MODE: Open hand ──
-  if(f.every(Boolean)) {
-    mode='grab';
-    document.getElementById('modeBox').className='mode-indicator mode-grab';
-    document.getElementById('modeBox').textContent='✋ GRAB';
-    // Find nearest stroke and move it
-    if(grabbedStrokes.length===0) {
-      // Find strokes near palm
-      drawStrokes.forEach((stroke,si)=>{
-        const near=stroke.points.some(pt=>Math.hypot(pt.x-palmX,pt.y-palmY)<60);
-        if(near&&!grabbedStrokes.includes(si)) grabbedStrokes.push(si);
+  // ── GRAB: fist ──
+  if (isGrabMode(f)) {
+    document.getElementById('modeBox').textContent = '✊ GRAB';
+    document.getElementById('modeBox').style.color = '#ffaa00';
+    document.getElementById('modeBox').style.borderColor = '#ffaa00';
+
+    if (grabbedIdx === -1) {
+      // Find nearest stroke to palm
+      let minDist = 80, nearest = -1;
+      strokes.forEach((stroke, si) => {
+        const c = strokeCenter(stroke);
+        const d = Math.hypot(c.x - palmX, c.y - palmY);
+        if (d < minDist) { minDist = d; nearest = si; }
       });
+      if (nearest !== -1) {
+        grabbedIdx = nearest;
+        const c = strokeCenter(strokes[nearest]);
+        grabOffX = c.x - palmX;
+        grabOffY = c.y - palmY;
+      }
     }
-    // Move grabbed strokes
-    if(prevIndexPos && grabbedStrokes.length>0) {
-      const dx=(ix-prevIndexPos.x), dy=(iy-prevIndexPos.y);
-      grabbedStrokes.forEach(si=>{
-        drawStrokes[si].points=drawStrokes[si].points.map(pt=>({x:pt.x+dx,y:pt.y+dy}));
-      });
+
+    // Move grabbed stroke
+    if (grabbedIdx !== -1) {
+      const dx = palmX - prevPalmX;
+      const dy = palmY - prevPalmY;
+      strokes[grabbedIdx].points = strokes[grabbedIdx].points.map(pt => ({
+        x: pt.x + dx, y: pt.y + dy
+      }));
     }
   } else {
-    grabbedStrokes=[];
+    if (!isDrawMode(f)) grabbedIdx = -1;
   }
 
-  // ── ERASE MODE: Fist ──
-  if(!f[1]&&!f[2]&&!f[3]&&!f[4]) {
-    mode='erase';
-    document.getElementById('modeBox').className='mode-indicator mode-erase';
-    document.getElementById('modeBox').textContent='✊ ERASE';
-    // Erase strokes near fist
-    drawStrokes=drawStrokes.filter(stroke=>{
-      return !stroke.points.some(pt=>Math.hypot(pt.x-palmX,pt.y-palmY)<50);
-    });
-  }
-
-  // ── BLAST MODE: Thumbs up ──
-  if(gesture==='THUMBS UP 👍'&&gesture!==lastGesture) {
-    mode='blast';
-    document.getElementById('modeBox').className='mode-indicator mode-blast';
-    document.getElementById('modeBox').textContent='⚡ BLAST!';
+  // ── BLAST: thumb only ──
+  if (isBlast(f) && gesture !== lastGesture) {
+    document.getElementById('modeBox').textContent = '⚡ BLAST!';
+    document.getElementById('modeBox').style.color = '#ff6600';
+    document.getElementById('modeBox').style.borderColor = '#ff6600';
     spawnBlast(palmX, palmY);
-    // Screen shake effect via filter
-    document.body.style.filter='brightness(2)';
-    setTimeout(()=>document.body.style.filter='',150);
   }
 
-  // ── PEACE: Color change ──
-  if(gesture==='PEACE ✌') {
-    mode='draw';
-    // Cycle draw color
+  // ── OPEN: release ──
+  if (isOpenHand(f)) {
+    document.getElementById('modeBox').textContent = '🖐 OPEN';
+    document.getElementById('modeBox').style.color = '#ff6600';
+    document.getElementById('modeBox').style.borderColor = '#ff6600';
+    grabbedIdx = -1;
   }
 
-  prevIndexPos={x:ix,y:iy};
+  prevPalmX = palmX;
+  prevPalmY = palmY;
+  lastGesture = gesture;
   renderDrawings();
 }
 
-// ══════════════════════════════
-// MEDIAPIPE
-// ══════════════════════════════
+// ── CAMERA ──
 function startCamera() {
-  document.getElementById('startBtn').style.display='none';
-  document.getElementById('guide').style.display='none';
-  renderLoop();
+  document.getElementById('startBtn').style.display = 'none';
+  document.getElementById('guide').style.display = 'none';
+  loop();
 
-  const video=document.getElementById('videoElement');
+  const video = document.getElementById('videoElement');
+  const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+  hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.6 });
 
-  const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
-  hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:0.7,minTrackingConfidence:0.6});
-
-  hands.onResults(results=>{
-    const W=window.innerWidth,H=window.innerHeight;
-
-    // Draw camera on bg
+  hands.onResults(results => {
     bgCtx.save();
-    bgCtx.scale(-1,1);
-    bgCtx.drawImage(results.image,-W,0,W,H);
+    bgCtx.scale(-1, 1);
+    bgCtx.drawImage(results.image, -W, 0, W, H);
     bgCtx.restore();
-    // Dark tint for HUD feel
-    bgCtx.fillStyle='rgba(0,5,15,0.35)';
-    bgCtx.fillRect(0,0,W,H);
+    bgCtx.fillStyle = 'rgba(0,5,15,0.3)';
+    bgCtx.fillRect(0, 0, W, H);
 
-    if(results.multiHandLandmarks&&results.multiHandLandmarks.length>0) {
-      landmarks=results.multiHandLandmarks[0];
-      document.getElementById('statusText').textContent='SUIT ONLINE';
-
-      // Draw skeleton on fxCanvas (mirrored already)
-      drawSkeleton(fxCtx,landmarks,W,H);
-
-      const f=getFingersUp(landmarks);
-      const gesture=detectGesture(f,landmarks);
-      document.getElementById('gestureBox').textContent=gesture;
-      processGesture(landmarks,gesture,W,H);
-
-      if(gesture!==lastGesture) lastGesture=gesture;
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      lm = results.multiHandLandmarks[0];
+      document.getElementById('statusText').textContent = 'ONLINE ●';
+      processHand(lm);
     } else {
-      landmarks=null;
-      document.getElementById('statusText').textContent='SCANNING...';
-      document.getElementById('gestureBox').textContent='– – –';
-      if(mode!=='standby'){
-        mode='standby';
-        document.getElementById('modeBox').textContent='STANDBY';
-        document.getElementById('modeBox').className='mode-indicator mode-draw';
-      }
-      prevIndexPos=null;
-      currentStroke=null;
-      grabbedStrokes=[];
+      lm = null;
+      currentStroke = null;
+      grabbedIdx = -1;
+      document.getElementById('statusText').textContent = 'SCANNING...';
+      document.getElementById('gestureBox').textContent = '– – –';
+      document.getElementById('modeBox').textContent = 'STANDBY';
       renderDrawings();
     }
   });
 
-  const camera=new Camera(video,{
-    onFrame:async()=>{await hands.send({image:video});},
-    width:1280,height:720,facingMode:'user'
+  const camera = new Camera(video, {
+    onFrame: async () => { await hands.send({ image: video }); },
+    width: 1280, height: 720, facingMode: 'user'
   });
-  camera.start().catch(()=>{
-    document.getElementById('startBtn').style.display='block';
-    document.getElementById('startBtn').textContent='⚠ RETRY';
+  camera.start().catch(() => {
+    document.getElementById('startBtn').style.display = 'block';
+    document.getElementById('startBtn').textContent = '⚠ RETRY';
   });
 }
 </script>
